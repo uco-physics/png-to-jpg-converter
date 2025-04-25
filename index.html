@@ -10,10 +10,7 @@
   <style>
     /* カラーパレット & フォント定義 */
     :root {
-      /* フォント */
       --font-sans: 'Inter', sans-serif;
-
-      /* カラー */
       --color-primary: #4F46E5;
       --color-primary-hover: #4338CA;
       --color-secondary: #10B981;
@@ -23,22 +20,16 @@
       --color-error: #EF4444;
       --color-text-primary: #111827;
       --color-text-secondary: #6B7280;
-
-      /* サイズ */
       --radius: 0.5rem;
       --spacing: 1rem;
       --transition: 0.2s ease-in-out;
     }
-
-    /* リセット & ベース */n    *,
-    *::before,
-    *::after {
+    *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    html,
-    body {
+    html, body {
       height: 100%;
       background-color: var(--color-background);
       color: var(--color-text-primary);
@@ -52,16 +43,12 @@
       align-items: center;
       padding: calc(var(--spacing) * 2);
     }
-
-    /* ヘッダー */
     h1 {
       font-size: 1.75rem;
       font-weight: 600;
       margin-bottom: var(--spacing);
       color: var(--color-primary);
     }
-
-    /* コントロールバー */
     .controls {
       display: flex;
       flex-wrap: wrap;
@@ -123,23 +110,18 @@
       text-align: left;
       margin-top: 0.5rem;
     }
-
-    /* キャンバスエリア */
+    /* コンテナ：画像サイズに合わせて自動調整 */
     #container {
       position: relative;
-      width: 100%;
-      max-width: 90vw;
+      display: inline-block;
+      background-color: var(--color-surface);
       box-shadow: 0 4px 8px rgba(0,0,0,0.1);
       border-radius: var(--radius);
       overflow: hidden;
-      background-color: var(--color-surface);
     }
+    /* キャンバスは実画像サイズのまま表示 */
     canvas {
       display: block;
-      width: 100%;
-      height: auto;
-      background-color: var(--color-background);
-      cursor: crosshair;
     }
     #gridContainer {
       position: absolute;
@@ -168,7 +150,6 @@
   <div class="controls">
     <label for="imageInput">画像を選択</label>
     <input type="file" id="imageInput" accept="image/*">
-
     <label>横分割:
       <input type="range" id="gridX" min="2" max="50" value="5">
       <span id="gridXValue">5</span>
@@ -177,13 +158,11 @@
       <input type="range" id="gridY" min="2" max="50" value="5">
       <span id="gridYValue">5</span>
     </label>
-
     <button id="applyGridBtn">グリッド更新</button>
     <button id="undoBtn">戻る</button>
     <button id="redoBtn">進む</button>
     <button id="resetBtn">リセット</button>
     <button id="saveBtn">保存</button>
-
     <select id="toolSelect">
       <option value="edit">グリッド編集</option>
       <option value="pen">ペン</option>
@@ -193,15 +172,12 @@
     <label>太さ:
       <input type="range" id="thickness" min="1" max="50" value="5">
     </label>
-
     <div id="error"></div>
   </div>
-
   <div id="container">
     <canvas id="canvas"></canvas>
     <div id="gridContainer"></div>
   </div>
-
   <!-- 既存のJavaScriptコードはそのままここに配置 -->
   <script>
     // --- Commit クラス ---
