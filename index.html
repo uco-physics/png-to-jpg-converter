@@ -11,13 +11,13 @@
     #gridContainer {
       position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
-      pointer-events: none; /* 通常はポイントを掴ませない */
+      pointer-events: none;
     }
     .grid-point {
       position: absolute; width: 10px; height: 10px;
       background: rgba(255,0,0,0.8); border-radius:50%;
       transform: translate(-50%,-50%); cursor: move;
-      pointer-events: auto; /* 必要時だけ掴む */
+      pointer-events: auto;
     }
     .controls { margin: 20px 0; }
     .controls > * { margin: 0 5px; vertical-align: middle; }
@@ -81,7 +81,7 @@
       }
     }
 
-    // --- DOM 取得 ---
+    // --- DOM Elements ---
     const canvas       = document.getElementById('canvas');
     const ctx          = canvas.getContext('2d');
     const imgInput     = document.getElementById('imageInput');
@@ -102,10 +102,9 @@
 
     // --- State ---
     let img           = new Image();
-    let imgData       = null;       // 現在のベース画像
+    let imgData       = null;
     let gridPoints    = [];
     let pendingX = +gridXInput.value, pendingY = +gridYInput.value;
-
     let rootCommit    = null, currentCommit = null;
     let isDragging    = false, dragIdx = null;
     let tool          = 'edit';
@@ -116,7 +115,7 @@
     const strokeCanvas = document.createElement('canvas');
     const strokeCtx    = strokeCanvas.getContext('2d');
 
-    // --- ヘルパー ---
+    // --- Helpers ---
     function showError(msg) {
       errorDiv.textContent = msg;
     }
@@ -127,7 +126,7 @@
       sy = Math.max(0, Math.min(h-1, sy));
       const x0 = Math.floor(sx), y0 = Math.floor(sy),
             x1 = Math.min(w-1, x0+1), y1 = Math.min(h-1, y0+1),
-            dx = sx-x0, dy = sy-y0;
+            dx = sx - x0, dy = sy - y0;
       const i00=(y0*w+x0)*4, i10=(y0*w+x1)*4,
             i01=(y1*w+x0)*4, i11=(y1*w+x1)*4;
       const c00=[buf[i00],buf[i00+1],buf[i00+2],buf[i00+3]],
@@ -222,39 +221,47 @@
       ctx.putImageData(output,0,0);
     }
 
-    // --- グリッドDOM ---
+    // --- グリッド DOM 管理 ---
     function createPoint(x,y,i){
       const d = document.createElement('div');
       d.className = 'grid-point';
       d.style.left = x+'px';
       d.style.top  = y+'px';
-      d.onmousedown = ()=>{
+      d.onmousedown = () => {
         if(tool==='edit'){
-          isDragging=true; dragIdx=i;
+          isDragging = true;
+          dragIdx = i;
         }
       };
       gridContainer.appendChild(d);
     }
+
     function initGridCommit(commit){
-      // ベース描画
+      // ← ここでストロークをクリア！
+      strokeCtx.clearRect(0, 0, strokeCanvas.width, strokeCanvas.height);
+
+      // ベース画像描画
       ctx.putImageData(commit.imgData,0,0);
       imgData = commit.imgData;
-      // スライダーに反映
+
+      // スライダー反映
       gridXInput.value = commit.gridX;
       gridYInput.value = commit.gridY;
       gridXValueEl.textContent = commit.gridX;
       gridYValueEl.textContent = commit.gridY;
       pendingX = commit.gridX;
       pendingY = commit.gridY;
-      // gridPoints
+
+      // gridPoints ＆ DOM 再構築
       gridPoints = commit.currentPoints();
       gridContainer.innerHTML = '';
       gridPoints.forEach((p,i)=> createPoint(p.x,p.y,i));
+
+      // 再描画
       draw();
     }
 
-    // --- イベント設定 ---
-    // スライダーは常に反応
+    // --- イベント登録 ---
     gridXInput.addEventListener('input', ()=>{
       pendingX = +gridXInput.value;
       gridXValueEl.textContent = pendingX;
@@ -274,9 +281,11 @@
         strokeCanvas.width  = img.width;
         strokeCanvas.height = img.height;
         strokeCtx.clearRect(0,0,img.width,img.height);
+
         // 初期ベース
         ctx.drawImage(img,0,0);
         const base = ctx.getImageData(0,0,canvas.width,canvas.height);
+
         // 初期グリッドポイント
         const gx = +gridXInput.value, gy = +gridYInput.value;
         const initPts = [];
@@ -299,10 +308,9 @@
 
     applyGridBtn.addEventListener('click', ()=>{
       if(!currentCommit) return;
-      // 現在の描画状態を新ベースに
+      // 合成画像を新ベースに
       const newBase = ctx.getImageData(0,0,canvas.width,canvas.height);
       const nx = pendingX, ny = pendingY;
-      // 新グリッド初期
       const pts = [];
       for(let y=0;y<=ny;y++){
         for(let x=0;x<=nx;x++){
@@ -356,15 +364,13 @@
 
     toolSelect.addEventListener('change', ()=>{
       tool = toolSelect.value;
-      // ポイント掴みの有効/無効
       Array.from(gridContainer.children)
         .forEach(pt=> pt.style.pointerEvents = (tool==='edit'?'auto':'none'));
       canvas.style.cursor = (tool==='edit'?'default':'crosshair');
     });
-    colorPicker.addEventListener('input', ()=> strokeColor   = colorPicker.value);
-    thicknessInp.addEventListener('input', ()=> strokeWidth   = +thicknessInp.value);
+    colorPicker.addEventListener('input', ()=> strokeColor = colorPicker.value);
+    thicknessInp.addEventListener('input', ()=> strokeWidth = +thicknessInp.value);
 
-    // マウス操作：ペン or グリッド移動
     let drawing = false;
     canvas.addEventListener('mousedown', e=>{
       if(tool==='pen' || tool==='eraser'){
