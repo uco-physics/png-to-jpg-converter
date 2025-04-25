@@ -3,146 +3,467 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>メッシュワープ＋ペン描画</title>
+  <title>メッシュワープ＋ペン機能（コミットツリー版）</title>
   <style>
-    :root {
-      --primary: #4A90E2;
-      --bg: #f7f9fc;
-      --fg: #333;
-      --accent: #e94e77;
-    }
-    body {
-      margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif;
-      background: var(--bg); color: var(--fg);
-    }
-    .toolbar {
-      display: flex; flex-wrap: wrap; align-items: center;
-      background: white; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .toolbar > * { margin: 5px; }
-    .toolbar button {
-      background: var(--primary); color: white; border: none;
-      padding: 8px 12px; border-radius: 4px; cursor: pointer;
-      font-size: 14px;
-    }
-    .toolbar button.active { background: var(--accent); }
-    .toolbar input[type=range] {
-      width: 100px;
-    }
-    #container {
-      position: relative; display: inline-block;
-      margin: 20px;
-      border: 3px solid #ddd; background: white;
-    }
-    canvas {
-      display: block;
-    }
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+    #container { position: relative; display: inline-block; }
+    canvas { border: 3px solid #000; background: #f0f0f0; display: block; }
     #gridContainer {
       position: absolute; top: 0; left: 0;
-      width: 100%; height: 100%; pointer-events: none;
+      width: 100%; height: 100%;
+      pointer-events: none;
     }
     .grid-point {
-      position: absolute; width: 12px; height: 12px;
-      background: var(--accent); border-radius: 50%;
+      position: absolute; width: 10px; height: 10px;
+      background: rgba(255,0,0,0.8); border-radius:50%;
       transform: translate(-50%,-50%); cursor: move;
       pointer-events: auto;
     }
+    .controls { margin: 20px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+    .controls > * { margin: 5px; }
+    #palette { display: flex; gap: 5px; }
+    .swatch {
+      width: 24px; height: 24px; border: 1px solid #666; cursor: pointer;
+    }
+    button, input[type=range], input[type=color] { padding: 5px; }
+    .active { outline: 2px solid #00f; }
+    #error { color: red; margin-top: 10px; width: 100%; text-align: center; }
   </style>
 </head>
 <body>
-  <div class="toolbar">
+  <h1>メッシュワープ＋ペン機能（コミットツリー版）</h1>
+  <div class="controls">
     <input type="file" id="imageInput" accept="image/*">
-    <label>横分割:<span id="gridXValue">5</span><input type="range" id="gridX" min="2" max="50" value="5"></label>
-    <label>縦分割:<span id="gridYValue">5</span><input type="range" id="gridY" min="2" max="50" value="5"></label>
+    <label>横分割:
+      <input type="range" id="gridX" min="2" max="50" value="5">
+      <span id="gridXValue">5</span>
+    </label>
+    <label>縦分割:
+      <input type="range" id="gridY" min="2" max="50" value="5">
+      <span id="gridYValue">5</span>
+    </label>
     <button id="applyGridBtn">グリッド更新</button>
     <button id="undoBtn">戻る</button>
     <button id="redoBtn">進む</button>
     <button id="resetBtn">リセット</button>
     <button id="saveBtn">保存</button>
-    <div style="border-left:1px solid #ddd;height:24px;margin:0 8px;"></div>
-    <button id="brushBtn" class="active">ペン</button>
-    <button id="eraserBtn">消しゴム</button>
-    <input type="color" id="colorPicker" value="#e94e77">
-    <label>太さ:<input type="range" id="sizeRange" min="1" max="50" value="5"></label>
-    <button id="clearStrokesBtn">描画クリア</button>
+    <div>
+      <button id="penBtn" class="active">ペン</button>
+      <button id="eraserBtn">消しゴム</button>
+    </div>
+    <div id="palette">
+      <!-- カラースウォッチ -->
+      <div class="swatch" data-color="#000000" style="background:#000000;"></div>
+      <div class="swatch" data-color="#ff0000" style="background:#ff0000;"></div>
+      <div class="swatch" data-color="#00ff00" style="background:#00ff00;"></div>
+      <div class="swatch" data-color="#0000ff" style="background:#0000ff;"></div>
+      <input type="color" id="customColor" value="#000000">
+    </div>
+    <label>太さ:
+      <input type="range" id="thickness" min="1" max="50" value="5">
+      <span id="thicknessValue">5</span>px
+    </label>
+    <button id="clearDrawBtn">描画クリア</button>
   </div>
+  <div id="error"></div>
+
   <div id="container">
-    <canvas id="baseCanvas"></canvas>
-    <canvas id="strokesCanvas" style="position:absolute;top:0;left:0;"></canvas>
+    <!-- 表示用キャンバス -->
+    <canvas id="canvas"></canvas>
+    <!-- グリッドポイント -->
     <div id="gridContainer"></div>
   </div>
 
   <script>
-  // --- コミットツリーは省略（先ほどの構造そのまま利用） ---
-  class Commit { /* ...同じ実装... */ }
-
-  const baseCanvas    = document.getElementById('baseCanvas');
-  const strokesCanvas = document.getElementById('strokesCanvas');
-  const baseCtx       = baseCanvas.getContext('2d');
-  const strokesCtx    = strokesCanvas.getContext('2d');
-  // UI Elements
-  const imageInput = document.getElementById('imageInput');
-  const gridX      = document.getElementById('gridX');
-  const gridY      = document.getElementById('gridY');
-  const gridXValue = document.getElementById('gridXValue');
-  const gridYValue = document.getElementById('gridYValue');
-  const applyGridBtn = document.getElementById('applyGridBtn');
-  const undoBtn      = document.getElementById('undoBtn');
-  const redoBtn      = document.getElementById('redoBtn');
-  const resetBtn     = document.getElementById('resetBtn');
-  const saveBtn      = document.getElementById('saveBtn');
-  const brushBtn     = document.getElementById('brushBtn');
-  const eraserBtn    = document.getElementById('eraserBtn');
-  const colorPicker  = document.getElementById('colorPicker');
-  const sizeRange    = document.getElementById('sizeRange');
-  const clearStrokesBtn = document.getElementById('clearStrokesBtn');
-  const gridContainer  = document.getElementById('gridContainer');
-
-  let currentTool = 'brush';
-  let drawColor   = colorPicker.value;
-  let drawSize    = +sizeRange.value;
-
-  brushBtn.onclick = ()=>{ currentTool='brush'; brushBtn.classList.add('active'); eraserBtn.classList.remove('active'); };
-  eraserBtn.onclick= ()=>{ currentTool='eraser'; eraserBtn.classList.add('active'); brushBtn.classList.remove('active'); };
-  colorPicker.oninput = e=> drawColor = e.target.value;
-  sizeRange.oninput   = e=> drawSize = +e.target.value;
-  clearStrokesBtn.onclick = ()=> strokesCtx.clearRect(0,0,strokesCanvas.width,strokesCanvas.height);
-
-  // 画像／グリッド／コミットの実装は先ほどのコードを統合
-  // ...
-  // 描画(draw) の中で: ベースと同様に strokesCtx.getImageData を warp し、
-  // 出力バッファにアルファ合成で重ねてから putImageData する
-  
-  // キャンバスサイズ同期
-  function syncSize(w,h){
-    baseCanvas.width = strokesCanvas.width = w;
-    baseCanvas.height= strokesCanvas.height= h;
-  }
-
-  // ペン描画
-  let drawing=false;
-  strokesCanvas.addEventListener('mousedown', e=>{
-    if(currentTool==='brush' || currentTool==='eraser'){
-      drawing=true;
-      strokesCtx.strokeStyle = currentTool==='eraser' ? 'rgba(0,0,0,1)' : drawColor;
-      strokesCtx.globalCompositeOperation = currentTool==='eraser' ? 'destination-out' : 'source-over';
-      strokesCtx.lineWidth = drawSize;
-      strokesCtx.lineCap = strokesCtx.lineJoin = 'round';
-      strokesCtx.beginPath();
-      const r=strokesCanvas.getBoundingClientRect();
-      strokesCtx.moveTo(e.clientX - r.left, e.clientY - r.top);
+    // --- コミットクラス ---
+    class Commit {
+      constructor(parent, imgData, gridX, gridY, initialPoints) {
+        this.parent    = parent;
+        this.children  = [];
+        this.imgData   = imgData;      // ImageData at commit
+        this.gridX     = gridX;
+        this.gridY     = gridY;
+        this.snapshots = [];
+        this.idx       = -1;
+        this.push(initialPoints);
+      }
+      push(points) {
+        this.snapshots = this.snapshots.slice(0, this.idx + 1);
+        this.snapshots.push(points.map(p => ({ x:p.x, y:p.y, origX:p.origX, origY:p.origY })));
+        this.idx++;
+      }
+      currentPoints() {
+        return this.snapshots[this.idx].map(p => ({ ...p }));
+      }
     }
-  });
-  strokesCanvas.addEventListener('mousemove', e=>{
-    if(!drawing) return;
-    const r=strokesCanvas.getBoundingClientRect();
-    strokesCtx.lineTo(e.clientX - r.left, e.clientY - r.top);
-    strokesCtx.stroke();
-    draw(); // リアルタイム反映
-  });
-  document.addEventListener('mouseup', ()=>{ if(drawing){ drawing=false; strokesCtx.closePath(); } });
 
-  // ...以降、画像読み込み／コミット／グリッド／draw() など統合...
+    // --- グローバル ---
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+
+    // オフスクリーン: drawing layer
+    const drawOff = document.createElement('canvas');
+    const drawCtx = drawOff.getContext('2d');
+
+    // UI elements
+    const imgInput     = document.getElementById('imageInput');
+    const gridXInput   = document.getElementById('gridX');
+    const gridYInput   = document.getElementById('gridY');
+    const gridXValueEl = document.getElementById('gridXValue');
+    const gridYValueEl = document.getElementById('gridYValue');
+    const applyGridBtn = document.getElementById('applyGridBtn');
+    const undoBtn      = document.getElementById('undoBtn');
+    const redoBtn      = document.getElementById('redoBtn');
+    const resetBtn     = document.getElementById('resetBtn');
+    const saveBtn      = document.getElementById('saveBtn');
+    const penBtn       = document.getElementById('penBtn');
+    const eraserBtn    = document.getElementById('eraserBtn');
+    const palette      = document.getElementById('palette');
+    const customColor  = document.getElementById('customColor');
+    const thicknessInp = document.getElementById('thickness');
+    const thicknessVal = document.getElementById('thicknessValue');
+    const clearDrawBtn = document.getElementById('clearDrawBtn');
+    const gridContainer= document.getElementById('gridContainer');
+    const errorDiv     = document.getElementById('error');
+
+    let img      = new Image();
+    let imgData  = null;     // current base ImageData
+    let gridPoints = [];
+    let pendingX = 5, pendingY = 5;
+    let rootCommit    = null, currentCommit = null;
+    let isDragging = false, dragIdx = null;
+
+    // ペン状態
+    let tool = 'pen';       // 'pen' or 'eraser'
+    let drawColor = '#000000';
+    let drawThickness = 5;
+    let drawing = false;
+
+    // --- ヘルパー ---
+    function showError(msg) {
+      errorDiv.textContent = msg;
+      console.error(msg);
+    }
+    function sampleBilinear(buf, sx, sy) {
+      const w=canvas.width, h=canvas.height;
+      sx = Math.max(0, Math.min(w-1, sx));
+      sy = Math.max(0, Math.min(h-1, sy));
+      const x0=Math.floor(sx), y0=Math.floor(sy);
+      const x1=Math.min(w-1,x0+1), y1=Math.min(h-1,y0+1);
+      const dx = sx-x0, dy=sy-y0;
+      const i00=(y0*w+x0)*4, i10=(y0*w+x1)*4, i01=(y1*w+x0)*4, i11=(y1*w+x1)*4;
+      const c00=[buf[i00],buf[i00+1],buf[i00+2],buf[i00+3]];
+      const c10=[buf[i10],buf[i10+1],buf[i10+2],buf[i10+3]];
+      const c01=[buf[i01],buf[i01+1],buf[i01+2],buf[i01+3]];
+      const c11=[buf[i11],buf[i11+1],buf[i11+2],buf[i11+3]];
+      const mix=(a,b,t)=>a+(b-a)*t;
+      return [
+        mix(mix(c00[0],c10[0],dx), mix(c01[0],c11[0],dx), dy),
+        mix(mix(c00[1],c10[1],dx), mix(c01[1],c11[1],dx), dy),
+        mix(mix(c00[2],c10[2],dx), mix(c01[2],c11[2],dx), dy),
+        mix(mix(c00[3],c10[3],dx), mix(c01[3],c11[3],dx), dy)
+      ];
+    }
+    function drawTriangle(v0,v1,v2,o0,o1,o2, buf,w,h){
+      const minX=Math.max(0,Math.floor(Math.min(v0.x,v1.x,v2.x))),
+            maxX=Math.min(w-1,Math.ceil (Math.max(v0.x,v1.x,v2.x))),
+            minY=Math.max(0,Math.floor(Math.min(v0.y,v1.y,v2.y))),
+            maxY=Math.min(h-1,Math.ceil (Math.max(v0.y,v1.y,v2.y)));
+      const area=(v1.y-v2.y)*(v0.x-v2.x)+(v2.x-v1.x)*(v0.y-v2.y);
+      for(let y=minY;y<=maxY;y++){
+        for(let x=minX;x<=maxX;x++){
+          const w0=((v1.y-v2.y)*(x-v2.x)+(v2.x-v1.x)*(y-v2.y))/area;
+          const w1=((v2.y-v0.y)*(x-v2.x)+(v0.x-v2.x)*(y-v2.y))/area;
+          const w2=1-w0-w1;
+          if(w0>=0 && w1>=0 && w2>=0){
+            const sx=w0*o0.x + w1*o1.x + w2*o2.x;
+            const sy=w0*o0.y + w1*o1.y + w2*o2.y;
+            const [r,g,b,a]=sampleBilinear(compositeBuf, sx, sy);
+            const idx=(y*w+x)*4;
+            buf[idx]=r; buf[idx+1]=g; buf[idx+2]=b; buf[idx+3]=a;
+          }
+        }
+      }
+    }
+
+    // --- グリッド＆描画 ---
+    let compositeBuf = null; // composite buffer for sampling
+
+    function draw() {
+      if (!imgData) return;
+      const w=canvas.width, h=canvas.height;
+      // composite base + draw layer
+      const base = imgData.data, draw = drawOff.getContext('2d').getImageData(0,0,w,h).data;
+      compositeBuf = new Uint8ClampedArray(base);
+      for(let i=0;i<base.length;i+=4){
+        const da = draw[i+3]/255;
+        if (da>0){
+          // alpha blend draw over base
+          compositeBuf[i]   = draw[i]*da + base[i]*(1-da);
+          compositeBuf[i+1] = draw[i+1]*da + base[i+1]*(1-da);
+          compositeBuf[i+2] = draw[i+2]*da + base[i+2]*(1-da);
+          compositeBuf[i+3] = 255;
+        }
+      }
+      // warp
+      const output = ctx.createImageData(w,h), buf=output.data;
+      for(let gy=0;gy<currentCommit.gridY;gy++){
+        for(let gx=0;gx<currentCommit.gridX;gx++){
+          const i=gy*(currentCommit.gridX+1)+gx;
+          const p1=gridPoints[i], p2=gridPoints[i+1],
+                p3=gridPoints[i+currentCommit.gridX+1],
+                p4=gridPoints[i+currentCommit.gridX+2];
+          const o1={x:p1.origX,y:p1.origY}, o2={x:p2.origX,y:p2.origY},
+                o3={x:p3.origX,y:p3.origY}, o4={x:p4.origX,y:p4.origY};
+          drawTriangle(p1,p2,p3, o1,o2,o3, buf,w,h);
+          drawTriangle(p4,p3,p2, o4,o3,o2, buf,w,h);
+        }
+      }
+      ctx.putImageData(output,0,0);
+    }
+
+    function createPoint(x,y,i){
+      const d=document.createElement('div');
+      d.className='grid-point';
+      d.style.left=x+'px'; d.style.top=y+'px';
+      d.onmousedown=()=>{ isDragging=true; dragIdx=i; };
+      gridContainer.appendChild(d);
+    }
+    function initGridCommit(commit) {
+      // base display
+      ctx.putImageData(commit.imgData,0,0);
+      imgData=commit.imgData;
+      // set sliders
+      gridXInput.value=commit.gridX; gridYInput.value=commit.gridY;
+      gridXValueEl.textContent=commit.gridX; gridYValueEl.textContent=commit.gridY;
+      pendingX=commit.gridX; pendingY=commit.gridY;
+      // gridPoints
+      gridPoints=commit.currentPoints();
+      // redraw DOM
+      gridContainer.innerHTML='';
+      for(let i=0;i<gridPoints.length;i++){
+        createPoint(gridPoints[i].x,gridPoints[i].y,i);
+      }
+      // reset drawOff size
+      drawOff.width=canvas.width; drawOff.height=canvas.height;
+    }
+
+    // --- イベント ---
+    imgInput.addEventListener('change',e=>{
+      const file=e.target.files[0]; if(!file) return showError('画像を選択してください');
+      img.src=URL.createObjectURL(file);
+      img.onload=()=>{
+        canvas.width=img.width; canvas.height=img.height;
+        drawOff.width=img.width; drawOff.height=img.height;
+        ctx.drawImage(img,0,0);
+        const base=ctx.getImageData(0,0,canvas.width,canvas.height);
+        // init draw layer
+        drawCtx.clearRect(0,0,drawOff.width,drawOff.height);
+        // initial gridPoints
+        const gx=+gridXInput.value, gy=+gridYInput.value;
+        const pts=[];
+        for(let y=0;y<=gy;y++){
+          for(let x=0;x<=gx;x++){
+            pts.push({ x:x*(canvas.width/gx), y:y*(canvas.height/gy),
+                       origX:x*(canvas.width/gx), origY:y*(canvas.height/gy) });
+          }
+        }
+        rootCommit=new Commit(null, base, gx, gy, pts);
+        currentCommit=rootCommit;
+        initGridCommit(rootCommit);
+        draw();
+        errorDiv.textContent='';
+      };
+      img.onerror=()=>showError('画像読み込み失敗');
+    });
+
+    applyGridBtn.addEventListener('click',()=>{
+      // commit draw into base
+      const merged = new ImageData(canvas.width,canvas.height);
+      const b=imgData.data, d=drawOff.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+      for(let i=0;i<b.length;i+=4){
+        const da=d[i+3]/255;
+        if(da>0){
+          merged.data[i]=d[i]; merged.data[i+1]=d[i+1];
+          merged.data[i+2]=d[i+2]; merged.data[i+3]=255;
+        } else {
+          merged.data[i]=b[i]; merged.data[i+1]=b[i+1];
+          merged.data[i+2]=b[i+2]; merged.data[i+3]=b[i+3];
+        }
+      }
+      // new grid
+      const nx=pendingX, ny=pendingY;
+      const pts=[];
+      for(let y=0;y<=ny;y++){
+        for(let x=0;x<=nx;x++){
+          pts.push({ x:x*(canvas.width/nx), y:y*(canvas.height/ny),
+                     origX:x*(canvas.width/nx), origY:y*(canvas.height/ny) });
+        }
+      }
+      const c=new Commit(currentCommit, merged, nx, ny, pts);
+      currentCommit.children.push(c);
+      currentCommit=c;
+      // clear draw layer
+      drawCtx.clearRect(0,0,drawOff.width,drawOff.height);
+      initGridCommit(c);
+      draw();
+    });
+
+    undoBtn.addEventListener('click',()=>{
+      if(!currentCommit) return;
+      if(currentCommit.idx>0) currentCommit.idx--;
+      else if(currentCommit.parent) currentCommit=currentCommit.parent;
+      initGridCommit(currentCommit);
+      draw();
+    });
+
+    redoBtn.addEventListener('click',()=>{
+      if(!currentCommit) return;
+      if(currentCommit.idx<currentCommit.snapshots.length-1) currentCommit.idx++;
+      else if(currentCommit.children.length===1) currentCommit=currentCommit.children[0];
+      initGridCommit(currentCommit);
+      draw();
+    });
+
+    resetBtn.addEventListener('click',()=>{
+      currentCommit.idx=0;
+      initGridCommit(currentCommit);
+      draw();
+    });
+
+    saveBtn.addEventListener('click',()=>{
+      const a=document.createElement('a');
+      a.href=canvas.toDataURL(); a.download='warped.png'; a.click();
+    });
+
+    // ツール切替
+    penBtn.addEventListener('click',()=>{
+      tool='pen'; penBtn.classList.add('active');
+      eraserBtn.classList.remove('active');
+      drawCtx.globalCompositeOperation='source-over';
+    });
+    eraserBtn.addEventListener('click',()=>{
+      tool='eraser'; eraserBtn.classList.add('active');
+      penBtn.classList.remove('active');
+      drawCtx.globalCompositeOperation='destination-out';
+    });
+
+    // カラーパレット
+    palette.addEventListener('click',e=>{
+      if(e.target.classList.contains('swatch')){
+        drawColor=e.target.dataset.color;
+        drawCtx.strokeStyle=drawColor;
+        customColor.value=drawColor;
+        document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+        e.target.classList.add('active');
+      }
+    });
+    customColor.addEventListener('input',e=>{
+      drawColor=e.target.value;
+      drawCtx.strokeStyle=drawColor;
+      document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    });
+
+    thicknessInp.addEventListener('input',()=>{
+      drawThickness=+thicknessInp.value;
+      thicknessVal.textContent=drawThickness;
+      drawCtx.lineWidth=drawThickness;
+    });
+
+    clearDrawBtn.addEventListener('click',()=>{
+      drawCtx.clearRect(0,0,drawOff.width,drawOff.height);
+      draw();
+    });
+
+    // 描画：画面→元画像座標変換
+    function screenToOriginal(x,y){
+      const w=canvas.width, h=canvas.height;
+      for(let gy=0;gy<currentCommit.gridY;gy++){
+        for(let gx=0;gx<currentCommit.gridX;gx++){
+          const i=gy*(currentCommit.gridX+1)+gx;
+          const p1=gridPoints[i], p2=gridPoints[i+1],
+                p3=gridPoints[i+currentCommit.gridX+1],
+                p4=gridPoints[i+currentCommit.gridX+2];
+          const tri = [
+            [p1,p2,p3],
+            [p4,p3,p2]
+          ];
+          const origTri = [
+            [{x:p1.origX,y:p1.origY},{x:p2.origX,y:p2.origY},{x:p3.origX,y:p3.origY}],
+            [{x:p4.origX,y:p4.origY},{x:p3.origX,y:p3.origY},{x:p2.origX,y:p2.origY}]
+          ];
+          for(let t=0;t<2;t++){
+            const [v0,v1,v2]=tri[t];
+            const area=(v1.y-v2.y)*(v0.x-v2.x)+(v2.x-v1.x)*(v0.y-v2.y);
+            const w0=((v1.y-v2.y)*(x-v2.x)+(v2.x-v1.x)*(y-v2.y))/area;
+            const w1=((v2.y-v0.y)*(x-v2.x)+(v0.x-v2.x)*(y-v2.y))/area;
+            const w2=1-w0-w1;
+            if(w0>=0&&w1>=0&&w2>=0){
+              const [o0,o1,o2]=origTri[t];
+              return {
+                x: w0*o0.x + w1*o1.x + w2*o2.x,
+                y: w0*o0.y + w1*o1.y + w2*o2.y
+              };
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    // マウス描画
+    canvas.addEventListener('mousedown',e=>{
+      if(!imgData) return;
+      drawing=true;
+      const rect=canvas.getBoundingClientRect();
+      const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+      const p=screenToOriginal(sx,sy);
+      if(p){
+        drawCtx.beginPath();
+        drawCtx.moveTo(p.x,p.y);
+        drawCtx.strokeStyle=drawColor;
+        drawCtx.lineWidth=drawThickness;
+        drawCtx.lineCap='round';
+      }
+    });
+    canvas.addEventListener('mousemove',e=>{
+      if(drawing){
+        const rect=canvas.getBoundingClientRect();
+        const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+        const p=screenToOriginal(sx,sy);
+        if(p){
+          drawCtx.lineTo(p.x,p.y);
+          drawCtx.stroke();
+          drawCtx.beginPath();
+          drawCtx.moveTo(p.x,p.y);
+          drawCtx.strokeStyle=drawColor;
+          drawCtx.lineWidth=drawThickness;
+        }
+        draw();
+      } else if(isDragging){
+        const rect=canvas.getBoundingClientRect();
+        const x=e.clientX-rect.left, y=e.clientY-rect.top;
+        const pt=gridPoints[dragIdx];
+        pt.x=Math.max(0,Math.min(canvas.width,x));
+        pt.y=Math.max(0,Math.min(canvas.height,y));
+        gridContainer.children[dragIdx].style.left=pt.x+'px';
+        gridContainer.children[dragIdx].style.top=pt.y+'px';
+        currentCommit.push(gridPoints);
+        draw();
+      }
+    });
+    document.addEventListener('mouseup',()=>{
+      if(drawing) drawing=false;
+      if(isDragging){ isDragging=false; dragIdx=null; }
+    });
+
+    // スライダー更新
+    gridXInput.addEventListener('input',()=>{
+      pendingX=+gridXInput.value; gridXValueEl.textContent=pendingX;
+    });
+    gridYInput.addEventListener('input',()=>{
+      pendingY=+gridYInput.value; gridYValueEl.textContent=pendingY;
+    });
   </script>
 </body>
 </html>
