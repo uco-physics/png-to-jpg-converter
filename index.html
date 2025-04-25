@@ -118,10 +118,13 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.1);
       border-radius: var(--radius);
       overflow: hidden;
+      max-width: 90vw;
     }
     /* キャンバスは実画像サイズのまま表示 */
     canvas {
       display: block;
+      width: 100%;
+      height: auto;
     }
     #gridContainer {
       position: absolute;
@@ -179,7 +182,6 @@
     <div id="gridContainer"></div>
   </div>
   <!-- 既存のJavaScriptコードはそのままここに配置 -->
-  <script>
     // --- Commit クラス ---
     class Commit {
       constructor(parent, imgData, gridX, gridY, initialPoints) {
